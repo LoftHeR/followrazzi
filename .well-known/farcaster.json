@@ -19,8 +19,8 @@
     "tagline": "Know who they follow first",
     "heroImageUrl": "https://followrazzi.vercel.app/preview.png",
     "screenshotUrls": ["https://followrazzi.vercel.app/preview.png"],
-    "ogTitle": "Followrazzi - Real-time Follow Tracker",
-    "ogDescription": "Track who celebrities and influencers follow in real-time",
+    "ogTitle": "Followrazzi",
+    "ogDescription": "Track who celebrities follow in real-time",
     "ogImageUrl": "https://followrazzi.vercel.app/preview.png"
   }
 }
