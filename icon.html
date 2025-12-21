@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Followrazzi - Icon Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0A0A0F;
+            color: #FAFAFA;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            gap: 40px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .canvas-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        canvas {
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        }
+        .label {
+            font-size: 14px;
+            color: #A1A1AA;
+        }
+        .download-btn {
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            background: #6366F1;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .download-btn:hover {
+            opacity: 0.9;
+        }
+        .download-btn:active {
+            transform: scale(0.97);
+        }
+        .row {
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>📸 Followrazzi Icon Generator</h1>
+    
+    <div class="row">
+        <div class="canvas-container">
+            <canvas id="iconCanvas" width="200" height="200"></canvas>
+            <span class="label">icon.png (200x200)</span>
+            <button class="download-btn" id="downloadIcon">Download icon.png</button>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="previewCanvas" width="600" height="400"></canvas>
+            <span class="label">preview.png (600x400)</span>
+            <button class="download-btn" id="downloadPreview">Download preview.png</button>
+        </div>
+    </div>
+
+    <script>
+        // Icon Canvas (200x200)
+        const iconCanvas = document.getElementById('iconCanvas');
+        const iconCtx = iconCanvas.getContext('2d');
+        
+        // Background gradient
+        const iconGradient = iconCtx.createLinearGradient(0, 0, 200, 200);
+        iconGradient.addColorStop(0, '#6366F1');
+        iconGradient.addColorStop(1, '#8B5CF6');
+        
+        // Draw rounded rect background
+        iconCtx.beginPath();
+        iconCtx.roundRect(0, 0, 200, 200, 40);
+        iconCtx.fillStyle = iconGradient;
+        iconCtx.fill();
+        
+        // Draw camera emoji
+        iconCtx.font = '80px Arial';
+        iconCtx.textAlign = 'center';
+        iconCtx.textBaseline = 'middle';
+        iconCtx.fillText('📸', 100, 95);
+        
+        // Draw small eyes/radar dots
+        iconCtx.fillStyle = '#F59E0B';
+        iconCtx.beginPath();
+        iconCtx.arc(55, 145, 8, 0, Math.PI * 2);
+        iconCtx.fill();
+        
+        iconCtx.beginPath();
+        iconCtx.arc(100, 155, 8, 0, Math.PI * 2);
+        iconCtx.fill();
+        
+        iconCtx.beginPath();
+        iconCtx.arc(145, 145, 8, 0, Math.PI * 2);
+        iconCtx.fill();
+        
+        // Connect dots with lines
+        iconCtx.strokeStyle = '#F59E0B';
+        iconCtx.lineWidth = 2;
+        iconCtx.beginPath();
+        iconCtx.moveTo(55, 145);
+        iconCtx.lineTo(100, 155);
+        iconCtx.lineTo(145, 145);
+        iconCtx.stroke();
+
+        // Preview Canvas (600x400)
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        
+        // Background
+        const previewGradient = previewCtx.createLinearGradient(0, 0, 600, 400);
+        previewGradient.addColorStop(0, '#0A0A0F');
+        previewGradient.addColorStop(1, '#1A1A25');
+        previewCtx.fillStyle = previewGradient;
+        previewCtx.fillRect(0, 0, 600, 400);
+        
+        // Grid pattern
+        previewCtx.strokeStyle = '#27272A';
+        previewCtx.lineWidth = 1;
+        for (let i = 0; i < 600; i += 40) {
+            previewCtx.beginPath();
+            previewCtx.moveTo(i, 0);
+            previewCtx.lineTo(i, 400);
+            previewCtx.stroke();
+        }
+        for (let i = 0; i < 400; i += 40) {
+            previewCtx.beginPath();
+            previewCtx.moveTo(0, i);
+            previewCtx.lineTo(600, i);
+            previewCtx.stroke();
+        }
+        
+        // Icon circle glow
+        const glowGradient = previewCtx.createRadialGradient(180, 200, 0, 180, 200, 150);
+        glowGradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+        glowGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+        previewCtx.fillStyle = glowGradient;
+        previewCtx.fillRect(0, 0, 600, 400);
+        
+        // Draw icon
+        const smallIconGradient = previewCtx.createLinearGradient(110, 130, 250, 270);
+        smallIconGradient.addColorStop(0, '#6366F1');
+        smallIconGradient.addColorStop(1, '#8B5CF6');
+        
+        previewCtx.beginPath();
+        previewCtx.roundRect(110, 130, 140, 140, 28);
+        previewCtx.fillStyle = smallIconGradient;
+        previewCtx.fill();
+        
+        previewCtx.font = '56px Arial';
+        previewCtx.textAlign = 'center';
+        previewCtx.textBaseline = 'middle';
+        previewCtx.fillText('📸', 180, 195);
+        
+        // Radar dots on icon
+        previewCtx.fillStyle = '#F59E0B';
+        previewCtx.beginPath();
+        previewCtx.arc(140, 240, 5, 0, Math.PI * 2);
+        previewCtx.fill();
+        previewCtx.beginPath();
+        previewCtx.arc(180, 248, 5, 0, Math.PI * 2);
+        previewCtx.fill();
+        previewCtx.beginPath();
+        previewCtx.arc(220, 240, 5, 0, Math.PI * 2);
+        previewCtx.fill();
+        
+        previewCtx.strokeStyle = '#F59E0B';
+        previewCtx.lineWidth = 1.5;
+        previewCtx.beginPath();
+        previewCtx.moveTo(140, 240);
+        previewCtx.lineTo(180, 248);
+        previewCtx.lineTo(220, 240);
+        previewCtx.stroke();
+        
+        // Text
+        previewCtx.fillStyle = '#FAFAFA';
+        previewCtx.font = 'bold 48px Arial';
+        previewCtx.textAlign = 'left';
+        previewCtx.textBaseline = 'middle';
+        previewCtx.fillText('Followrazzi', 280, 170);
+        
+        previewCtx.fillStyle = '#A1A1AA';
+        previewCtx.font = '20px Arial';
+        previewCtx.fillText('Know who they follow,', 280, 215);
+        previewCtx.fillText('before everyone else.', 280, 245);
+        
+        // Sample event cards
+        // Card 1
+        previewCtx.fillStyle = '#1E1E2A';
+        previewCtx.beginPath();
+        previewCtx.roundRect(280, 280, 140, 70, 10);
+        previewCtx.fill();
+        
+        previewCtx.fillStyle = '#22C55E';
+        previewCtx.fillRect(280, 280, 3, 70);
+        
+        previewCtx.fillStyle = '#22C55E';
+        previewCtx.font = '10px Arial';
+        previewCtx.fillText('🟢 Follow', 290, 298);
+        
+        previewCtx.fillStyle = '#FAFAFA';
+        previewCtx.font = '12px Arial';
+        previewCtx.fillText('@vitalik.eth', 290, 318);
+        
+        previewCtx.fillStyle = '#A1A1AA';
+        previewCtx.font = '11px Arial';
+        previewCtx.fillText('→ @jesse.base', 290, 338);
+        
+        // Card 2
+        previewCtx.fillStyle = '#1E1E2A';
+        previewCtx.beginPath();
+        previewCtx.roundRect(430, 280, 140, 70, 10);
+        previewCtx.fill();
+        
+        previewCtx.fillStyle = '#EF4444';
+        previewCtx.fillRect(430, 280, 3, 70);
+        
+        previewCtx.fillStyle = '#EF4444';
+        previewCtx.font = '10px Arial';
+        previewCtx.fillText('🔴 Unfollow', 440, 298);
+        
+        previewCtx.fillStyle = '#FAFAFA';
+        previewCtx.font = '12px Arial';
+        previewCtx.fillText('@elonmusk', 440, 318);
+        
+        previewCtx.fillStyle = '#A1A1AA';
+        previewCtx.font = '11px Arial';
+        previewCtx.fillText('✕ @nytimes', 440, 338);
+
+        // Download functions
+        document.getElementById('downloadIcon').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'icon.png';
+            link.href = iconCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        document.getElementById('downloadPreview').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'preview.png';
+            link.href = previewCanvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="fc:frame" content="vNext">
+    <meta name="base:app_id" content="">
+    <title>Followrazzi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">📸</span>
+                <span class="logo-text">Followrazzi</span>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="refreshBtn">🔄</button>
+                <button class="icon-btn" id="settingsBtn">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="feed">🔥 Live</button>
+            <button class="tab" data-tab="watchlist">📋 Watchlist</button>
+            <button class="tab" data-tab="trends">📈 Trends</button>
+        </nav>
+
+        <!-- Feed Section -->
+        <section id="feed" class="section active">
+            <div class="stats-bar">
+                <span class="stat">
+                    <span class="stat-value" id="todayCount">0</span>
+                    <span class="stat-label">Today</span>
+                </span>
+                <span class="stat">
+                    <span class="stat-value live-dot">●</span>
+                    <span class="stat-label">LIVE</span>
+                </span>
+            </div>
+            <div id="feedList" class="feed-list">
+                <!-- Events will be loaded here -->
+            </div>
+        </section>
+
+        <!-- Watchlist Section -->
+        <section id="watchlist" class="section">
+            <div class="watchlist-header">
+                <span class="watchlist-count"><span id="watchCount">0</span>/10 slots</span>
+                <button class="add-btn" id="addAccountBtn">+ Add</button>
+            </div>
+            <div id="watchlistItems" class="watchlist-items">
+                <!-- Watchlist items here -->
+            </div>
+        </section>
+
+        <!-- Trends Section -->
+        <section id="trends" class="section">
+            <h3 class="section-title">🔥 Hot Follows Today</h3>
+            <div id="trendsList" class="trends-list">
+                <!-- Trends here -->
+            </div>
+        </section>
+
+        <!-- Add Account Modal -->
+        <div id="addModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add to Watchlist</h3>
+                    <button class="close-btn" id="closeModal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <input type="text" id="usernameInput" placeholder="@username" class="input">
+                    <select id="platformSelect" class="input">
+                        <option value="twitter">𝕏 Twitter</option>
+                        <option value="farcaster">🟣 Farcaster</option>
+                        <option value="instagram">📷 Instagram</option>
+                    </select>
+                    <button class="primary-btn" id="confirmAdd">Add Account</button>
+                </div>
+                <div class="suggested">
+                    <p class="suggested-title">Suggested</p>
+                    <div class="suggested-list" id="suggestedList">
+                        <!-- Suggested accounts -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Detail Modal -->
+        <div id="detailModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Event Details</h3>
+                    <button class="close-btn" id="closeDetail">✕</button>
+                </div>
+                <div class="modal-body" id="detailContent">
+                    <!-- Detail content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
+

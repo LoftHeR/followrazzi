@@ -1,0 +1,26 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "frame": {
+    "version": "1",
+    "name": "Followrazzi",
+    "subtitle": "Follow Tracker",
+    "description": "Track who celebrities and influencers follow in real-time. Get instant notifications when your favorite accounts make new connections.",
+    "iconUrl": "https://followrazzi.vercel.app/icon.png",
+    "homeUrl": "https://followrazzi.vercel.app",
+    "imageUrl": "https://followrazzi.vercel.app/preview.png",
+    "splashImageUrl": "https://followrazzi.vercel.app/icon.png",
+    "splashBackgroundColor": "#0A0A0F",
+    "primaryCategory": "social",
+    "tags": ["social", "tracking", "farcaster", "crypto"],
+    "tagline": "Know who they follow first",
+    "heroImageUrl": "https://followrazzi.vercel.app/preview.png",
+    "screenshotUrls": ["https://followrazzi.vercel.app/preview.png"],
+    "ogTitle": "Followrazzi - Real-time Follow Tracker",
+    "ogDescription": "Track who celebrities and influencers follow in real-time",
+    "ogImageUrl": "https://followrazzi.vercel.app/preview.png"
+  }
+}
