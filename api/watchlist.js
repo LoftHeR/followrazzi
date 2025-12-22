@@ -1,9 +1,8 @@
-// Watchlist API
+// Watchlist API with Redis persistence
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
-
-// In-memory storage (resets on cold start - use Vercel KV for persistence)
-let watchlistStore = new Map();
+const UPSTASH_REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,7 +17,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const watchlist = watchlistStore.get(userId) || getDefaultWatchlist();
+      const watchlist = await getWatchlist(userId);
       return res.status(200).json({ 
         watchlist,
         count: watchlist.length,
@@ -33,7 +32,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Username required' });
       }
 
-      let watchlist = watchlistStore.get(userId) || [];
+      let watchlist = await getWatchlist(userId);
 
       if (watchlist.length >= 10) {
         return res.status(400).json({ error: 'Watchlist full (max 10)' });
@@ -84,7 +83,12 @@ export default async function handler(req, res) {
       };
 
       watchlist.push(newItem);
-      watchlistStore.set(userId, watchlist);
+      await saveWatchlist(userId, watchlist);
+
+      // Also save initial following snapshot for change detection
+      if (userData.fid) {
+        await saveInitialFollowing(userData.fid);
+      }
 
       return res.status(201).json({ 
         message: 'Added',
@@ -100,9 +104,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'ID required' });
       }
 
-      let watchlist = watchlistStore.get(userId) || [];
+      let watchlist = await getWatchlist(userId);
       watchlist = watchlist.filter(item => item.id !== id);
-      watchlistStore.set(userId, watchlist);
+      await saveWatchlist(userId, watchlist);
 
       return res.status(200).json({ 
         message: 'Removed',
@@ -115,6 +119,79 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Watchlist error:', error);
     return res.status(500).json({ error: 'Server error' });
+  }
+}
+
+// Redis helpers
+async function getWatchlist(userId) {
+  if (!UPSTASH_REDIS_URL) {
+    return getDefaultWatchlist();
+  }
+
+  try {
+    const response = await fetch(`${UPSTASH_REDIS_URL}/get/watchlist:${userId}`, {
+      headers: { 'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}` }
+    });
+    const data = await response.json();
+    return data.result ? JSON.parse(data.result) : getDefaultWatchlist();
+  } catch {
+    return getDefaultWatchlist();
+  }
+}
+
+async function saveWatchlist(userId, watchlist) {
+  if (!UPSTASH_REDIS_URL) return;
+
+  try {
+    await fetch(`${UPSTASH_REDIS_URL}/set/watchlist:${userId}`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(watchlist)
+    });
+  } catch (err) {
+    console.error('Save watchlist error:', err);
+  }
+}
+
+async function saveInitialFollowing(fid) {
+  if (!UPSTASH_REDIS_URL) return;
+
+  try {
+    // Get current following
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=150`,
+      {
+        headers: {
+          'accept': 'application/json',
+          'api_key': NEYNAR_API_KEY
+        }
+      }
+    );
+
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const following = (data.users || []).map(u => ({
+      fid: u.fid,
+      username: u.username,
+      displayName: u.display_name,
+      avatar: u.pfp_url
+    }));
+
+    // Save to Redis
+    await fetch(`${UPSTASH_REDIS_URL}/set/following:${fid}?ex=86400`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(following)
+    });
+  } catch (err) {
+    console.error('Save initial following error:', err);
   }
 }
 

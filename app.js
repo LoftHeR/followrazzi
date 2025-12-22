@@ -3,7 +3,7 @@ import { sdk } from 'https://esm.sh/@farcaster/frame-sdk';
 // Initialize Farcaster SDK
 sdk.actions.ready();
 
-// API Base URL - uses relative path for Vercel
+// API Base URL
 const API_BASE = '/api';
 
 // State
@@ -11,6 +11,8 @@ let state = {
     events: [],
     watchlist: [],
     trends: [],
+    notifications: [],
+    unreadCount: 0,
     activeTab: 'feed',
     loading: true,
     userId: 'demo-user'
@@ -26,14 +28,19 @@ const tabs = document.querySelectorAll('.tab');
 const sections = document.querySelectorAll('.section');
 const addModal = document.getElementById('addModal');
 const detailModal = document.getElementById('detailModal');
+const notificationsModal = document.getElementById('notificationsModal');
 const addAccountBtn = document.getElementById('addAccountBtn');
 const closeModal = document.getElementById('closeModal');
 const closeDetail = document.getElementById('closeDetail');
+const closeNotifications = document.getElementById('closeNotifications');
 const confirmAdd = document.getElementById('confirmAdd');
 const usernameInput = document.getElementById('usernameInput');
 const platformSelect = document.getElementById('platformSelect');
 const suggestedList = document.getElementById('suggestedList');
 const refreshBtn = document.getElementById('refreshBtn');
+const notificationBtn = document.getElementById('notificationBtn');
+const notificationBadge = document.getElementById('notificationBadge');
+const notificationsList = document.getElementById('notificationsList');
 const detailContent = document.getElementById('detailContent');
 
 // Initialize
@@ -45,13 +52,17 @@ async function init() {
     await Promise.all([
         loadEvents(),
         loadWatchlist(),
-        loadTrends()
+        loadTrends(),
+        loadNotifications()
     ]);
     
     state.loading = false;
     
     // Auto-refresh every 30 seconds
     setInterval(loadEvents, 30000);
+    
+    // Check notifications every 60 seconds
+    setInterval(loadNotifications, 60000);
 }
 
 // API Functions
@@ -68,7 +79,6 @@ async function loadEvents() {
         updateStats();
     } catch (error) {
         console.error('Load events error:', error);
-        // Fallback to mock data
         state.events = getMockEvents();
         renderFeed();
         updateStats();
@@ -107,6 +117,21 @@ async function loadTrends() {
     }
 }
 
+async function loadNotifications() {
+    try {
+        const response = await fetch(`${API_BASE}/notifications?userId=${state.userId}`);
+        
+        if (!response.ok) throw new Error('Failed to load notifications');
+        
+        const data = await response.json();
+        state.notifications = data.notifications || [];
+        state.unreadCount = data.unreadCount || 0;
+        updateNotificationBadge();
+    } catch (error) {
+        console.error('Load notifications error:', error);
+    }
+}
+
 async function addToWatchlist(username, platform) {
     try {
         const response = await fetch(`${API_BASE}/watchlist?userId=${state.userId}`, {
@@ -123,7 +148,7 @@ async function addToWatchlist(username, platform) {
         }
         
         await loadWatchlist();
-        showToast(`@${username.replace('@', '')} added!`);
+        showToast(`@${username.replace('@', '')} added! You'll be notified of their follows.`);
         return true;
     } catch (error) {
         console.error('Add to watchlist error:', error);
@@ -148,17 +173,20 @@ async function removeFromWatchlist(id) {
     }
 }
 
-async function searchUsers(query) {
+async function markNotificationsRead() {
     try {
-        const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+        await fetch(`${API_BASE}/notifications?userId=${state.userId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ markAllRead: true })
+        });
         
-        if (!response.ok) return [];
-        
-        const data = await response.json();
-        return data.users || [];
+        state.notifications = state.notifications.map(n => ({ ...n, read: true }));
+        state.unreadCount = 0;
+        updateNotificationBadge();
+        renderNotifications();
     } catch (error) {
-        console.error('Search error:', error);
-        return [];
+        console.error('Mark read error:', error);
     }
 }
 
@@ -197,21 +225,14 @@ function renderFeed() {
                         <span class="username">@${event.actor?.username || 'unknown'}</span>
                         <span class="arrow">${event.type === 'unfollow' ? '✕' : '→'}</span>
                         <span class="username">@${event.target?.username || 'unknown'}</span>
-                        <span class="platform-badge ${event.actor?.platform || 'farcaster'}">${event.actor?.platform === 'twitter' ? '𝕏' : '🟣'}</span>
+                        <span class="platform-badge farcaster">🟣</span>
                     </div>
                     <div class="event-subtitle">${event.target?.bio || event.target?.displayName || ''}</div>
                 </div>
             </div>
-            ${event.aiAnalysis ? `
-            <div class="event-ai">
-                <div class="event-ai-label">🤖 AI Analysis</div>
-                ${event.aiAnalysis}
-            </div>
-            ` : ''}
         </div>
     `).join('');
 
-    // Add click listeners
     document.querySelectorAll('.event-card').forEach(card => {
         card.addEventListener('click', () => showEventDetail(card.dataset.id));
     });
@@ -232,19 +253,18 @@ function renderWatchlist() {
 
     watchlistItems.innerHTML = state.watchlist.map(item => `
         <div class="watchlist-item" data-id="${item.id}">
-            <div class="watchlist-avatar">${item.avatar ? `<img src="${item.avatar}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : getPlatformEmoji(item.platform)}</div>
+            <div class="watchlist-avatar">${item.avatar ? `<img src="${item.avatar}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : '🟣'}</div>
             <div class="watchlist-info">
                 <div class="watchlist-name">@${item.username}</div>
                 <div class="watchlist-meta">${item.followerCount || item.followers || '?'} followers • ${item.lastActive || 'Active'}</div>
             </div>
             <div class="watchlist-actions">
-                <button class="watch-btn notify" data-id="${item.id}">🔔</button>
+                <button class="watch-btn notify active" data-id="${item.id}">🔔</button>
                 <button class="watch-btn delete" data-id="${item.id}">🗑️</button>
             </div>
         </div>
     `).join('');
 
-    // Add delete listeners
     document.querySelectorAll('.watch-btn.delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -271,9 +291,42 @@ function renderTrends() {
                 <div class="trend-name">@${trend.username}</div>
                 <div class="trend-meta">${trend.displayName || ''} • 🟣 Farcaster</div>
             </div>
-            <div class="trend-count">+${trend.recentFollows || '?'} follows</div>
+            <div class="trend-count">+${trend.recentFollows || '?'}</div>
         </div>
     `).join('');
+}
+
+function renderNotifications() {
+    if (state.notifications.length === 0) {
+        notificationsList.innerHTML = `
+            <div class="notification-empty">
+                <div style="font-size: 48px; margin-bottom: 16px;">🔕</div>
+                <div>No notifications yet.<br>You'll be notified when accounts you follow make changes.</div>
+            </div>
+        `;
+        return;
+    }
+
+    notificationsList.innerHTML = state.notifications.map(notif => `
+        <div class="notification-item ${notif.type} ${notif.read ? '' : 'unread'}">
+            <div class="notification-icon">${notif.type === 'follow' ? '🟢' : '🔴'}</div>
+            <div class="notification-content">
+                <div class="notification-text">
+                    <strong>@${notif.actor?.username || 'Someone'}</strong> 
+                    ${notif.type === 'follow' ? 'followed' : 'unfollowed'} 
+                    <strong>@${notif.target?.username || 'someone'}</strong>
+                </div>
+                <div class="notification-time">${formatTime(notif.timestamp)}</div>
+            </div>
+        </div>
+    `).join('');
+
+    if (state.unreadCount > 0) {
+        notificationsList.innerHTML += `
+            <button class="mark-all-read" id="markAllRead">Mark all as read</button>
+        `;
+        document.getElementById('markAllRead')?.addEventListener('click', markNotificationsRead);
+    }
 }
 
 function renderSuggested() {
@@ -297,38 +350,41 @@ function updateStats() {
     todayCount.textContent = state.events.length;
 }
 
+function updateNotificationBadge() {
+    notificationBadge.textContent = state.unreadCount;
+    notificationBadge.setAttribute('data-count', state.unreadCount);
+}
+
 // Event Listeners
 function setupEventListeners() {
-    // Tabs
     tabs.forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
-    // Modal controls
     addAccountBtn.addEventListener('click', () => openModal(addModal));
     closeModal.addEventListener('click', () => closeModalFn(addModal));
     closeDetail.addEventListener('click', () => closeModalFn(detailModal));
+    closeNotifications.addEventListener('click', () => closeModalFn(notificationsModal));
     
-    // Close modal on backdrop click
-    [addModal, detailModal].forEach(modal => {
+    notificationBtn.addEventListener('click', () => {
+        renderNotifications();
+        openModal(notificationsModal);
+    });
+
+    [addModal, detailModal, notificationsModal].forEach(modal => {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) closeModalFn(modal);
         });
     });
 
-    // Add account
     confirmAdd.addEventListener('click', handleAddAccount);
-
-    // Refresh
     refreshBtn.addEventListener('click', handleRefresh);
 
-    // Input enter key
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleAddAccount();
     });
 }
 
-// Tab switching
 function switchTab(tabName) {
     state.activeTab = tabName;
     
@@ -341,7 +397,6 @@ function switchTab(tabName) {
     });
 }
 
-// Modal functions
 function openModal(modal) {
     modal.classList.add('active');
     if (modal === addModal) {
@@ -354,7 +409,6 @@ function closeModalFn(modal) {
     modal.classList.remove('active');
 }
 
-// Handle add account
 async function handleAddAccount() {
     const username = usernameInput.value.trim().replace('@', '');
     const platform = platformSelect.value;
@@ -377,11 +431,10 @@ async function handleAddAccount() {
     }
 }
 
-// Handle refresh
 async function handleRefresh() {
     refreshBtn.style.transform = 'rotate(360deg)';
     
-    await loadEvents();
+    await Promise.all([loadEvents(), loadNotifications()]);
     
     setTimeout(() => {
         refreshBtn.style.transform = 'rotate(0deg)';
@@ -390,7 +443,6 @@ async function handleRefresh() {
     showToast('Feed refreshed');
 }
 
-// Show event detail
 function showEventDetail(id) {
     const event = state.events.find(e => e.id === id);
     if (!event) return;
@@ -428,19 +480,12 @@ function showEventDetail(id) {
                     <div class="event-subtitle">${event.target?.bio || event.target?.displayName || ''}</div>
                 </div>
             </div>
-            ${event.aiAnalysis ? `
-            <div class="event-ai" style="margin-top: 20px;">
-                <div class="event-ai-label">🤖 AI Analysis</div>
-                ${event.aiAnalysis}
-            </div>
-            ` : ''}
         </div>
     `;
 
     openModal(detailModal);
 }
 
-// Toast notification
 function showToast(message) {
     const existingToast = document.querySelector('.toast');
     if (existingToast) existingToast.remove();
@@ -457,12 +502,18 @@ function showToast(message) {
     }, 2500);
 }
 
-// Helpers
-function getPlatformEmoji(platform) {
-    return platform === 'twitter' ? '𝕏' : platform === 'farcaster' ? '🟣' : '📷';
+function formatTime(timestamp) {
+    if (!timestamp) return 'Recently';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+    
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    return `${Math.floor(diff / 86400)} days ago`;
 }
 
-// Mock data fallbacks
 function getMockEvents() {
     return [
         {
@@ -470,15 +521,7 @@ function getMockEvents() {
             type: 'follow',
             actor: { username: 'dwr.eth', avatar: '', platform: 'farcaster' },
             target: { username: 'vitalik.eth', avatar: '', bio: 'Ethereum co-founder' },
-            timeAgo: '5 min ago',
-            aiAnalysis: 'Dan Romero following Vitalik suggests continued interest in Ethereum ecosystem developments.'
-        },
-        {
-            id: '2',
-            type: 'follow',
-            actor: { username: 'jesse.base', avatar: '', platform: 'farcaster' },
-            target: { username: 'coinbase', avatar: '', bio: 'Cryptocurrency exchange' },
-            timeAgo: '15 min ago'
+            timeAgo: '5 min ago'
         }
     ];
 }
@@ -486,10 +529,9 @@ function getMockEvents() {
 function getMockTrends() {
     return [
         { rank: 1, username: 'dwr.eth', displayName: 'Dan Romero', recentFollows: 47 },
-        { rank: 2, username: 'vitalik.eth', displayName: 'Vitalik Buterin', recentFollows: 38 },
-        { rank: 3, username: 'jesse.base', displayName: 'Jesse Pollak', recentFollows: 31 }
+        { rank: 2, username: 'vitalik.eth', displayName: 'Vitalik Buterin', recentFollows: 38 }
     ];
 }
 
-// Start app
+// Start
 init();
