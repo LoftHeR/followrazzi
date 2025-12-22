@@ -2,10 +2,8 @@
   "name": "followrazzi",
   "version": "1.0.0",
   "description": "Track who celebrities and influencers follow in real-time",
-  "type": "module",
   "scripts": {
-    "dev": "npx serve . -p 3000",
-    "vercel-dev": "vercel dev"
+    "dev": "npx serve . -p 3000"
   },
   "devDependencies": {
     "serve": "^14.2.0"

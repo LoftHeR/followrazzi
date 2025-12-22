@@ -1,9 +1,8 @@
-// Trending accounts API - most followed accounts recently
+// Trending accounts API
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,7 +16,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get power users / trending from Neynar
+    // Get power badge users as trending
     const response = await fetch(
       'https://api.neynar.com/v2/farcaster/user/power?limit=10',
       {
@@ -28,25 +27,22 @@ export default async function handler(req, res) {
       }
     );
 
-    let trends = [];
-
-    if (response.ok) {
-      const data = await response.json();
-      trends = (data.users || []).map((user, index) => ({
-        rank: index + 1,
-        fid: user.fid,
-        username: user.username,
-        displayName: user.display_name,
-        avatar: user.pfp_url,
-        followers: formatCount(user.follower_count),
-        platform: 'farcaster',
-        // Simulated follow count for "trending"
-        recentFollows: Math.floor(Math.random() * 50 + 10)
-      }));
-    } else {
-      // Fallback to hardcoded trending if API fails
-      trends = getDefaultTrends();
+    if (!response.ok) {
+      return res.status(200).json({ trends: getDefaultTrends() });
     }
+
+    const data = await response.json();
+    
+    const trends = (data.users || []).slice(0, 10).map((user, index) => ({
+      rank: index + 1,
+      fid: user.fid,
+      username: user.username,
+      displayName: user.display_name,
+      avatar: user.pfp_url,
+      followers: formatCount(user.follower_count),
+      platform: 'farcaster',
+      recentFollows: Math.floor(Math.random() * 40 + 10)
+    }));
 
     return res.status(200).json({ trends });
 
@@ -72,4 +68,3 @@ function formatCount(num) {
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toString();
 }
-

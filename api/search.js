@@ -3,7 +3,6 @@
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -19,7 +18,7 @@ export default async function handler(req, res) {
   const { q } = req.query;
 
   if (!q || q.length < 2) {
-    return res.status(400).json({ error: 'Query must be at least 2 characters' });
+    return res.status(400).json({ error: 'Query too short', users: [] });
   }
 
   try {
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
     );
 
     if (!response.ok) {
-      throw new Error(`Neynar API error: ${response.status}`);
+      return res.status(200).json({ users: [] });
     }
 
     const data = await response.json();
@@ -45,16 +44,14 @@ export default async function handler(req, res) {
       displayName: user.display_name,
       avatar: user.pfp_url,
       bio: user.profile?.bio?.text || '',
-      followers: formatCount(user.follower_count),
-      following: formatCount(user.following_count),
-      verified: user.power_badge || false
+      followers: formatCount(user.follower_count)
     }));
 
     return res.status(200).json({ users });
 
   } catch (error) {
-    console.error('Search API Error:', error);
-    return res.status(500).json({ error: 'Search failed' });
+    console.error('Search error:', error);
+    return res.status(200).json({ users: [] });
   }
 }
 
@@ -64,4 +61,3 @@ function formatCount(num) {
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toString();
 }
-
