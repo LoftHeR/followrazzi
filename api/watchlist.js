@@ -15,13 +15,18 @@ export default async function handler(req, res) {
 
   const userId = req.query.userId || 'demo-user';
 
+  // Debug: Check if Redis is configured
+  const redisConfigured = !!(UPSTASH_REDIS_URL && UPSTASH_REDIS_TOKEN);
+  console.log('Redis configured:', redisConfigured);
+
   try {
     if (req.method === 'GET') {
       const watchlist = await getWatchlist(userId);
       return res.status(200).json({ 
         watchlist,
         count: watchlist.length,
-        limit: 10
+        limit: 10,
+        _redis: redisConfigured
       });
     }
 
@@ -83,9 +88,12 @@ export default async function handler(req, res) {
       };
 
       watchlist.push(newItem);
-      await saveWatchlist(userId, watchlist);
+      
+      // Save to Redis
+      const saved = await saveWatchlist(userId, watchlist);
+      console.log('Watchlist saved:', saved);
 
-      // Also save initial following snapshot for change detection
+      // Also save initial following snapshot
       if (userData.fid) {
         await saveInitialFollowing(userData.fid);
       }
@@ -93,7 +101,8 @@ export default async function handler(req, res) {
       return res.status(201).json({ 
         message: 'Added',
         item: newItem,
-        count: watchlist.length
+        count: watchlist.length,
+        _saved: saved
       });
     }
 
@@ -118,13 +127,14 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Watchlist error:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: 'Server error', details: error.message });
   }
 }
 
 // Redis helpers
 async function getWatchlist(userId) {
-  if (!UPSTASH_REDIS_URL) {
+  if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) {
+    console.log('Redis not configured, returning default');
     return getDefaultWatchlist();
   }
 
@@ -132,35 +142,63 @@ async function getWatchlist(userId) {
     const response = await fetch(`${UPSTASH_REDIS_URL}/get/watchlist:${userId}`, {
       headers: { 'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}` }
     });
+    
+    if (!response.ok) {
+      console.error('Redis GET failed:', response.status);
+      return getDefaultWatchlist();
+    }
+    
     const data = await response.json();
-    return data.result ? JSON.parse(data.result) : getDefaultWatchlist();
-  } catch {
+    console.log('Redis GET result:', data);
+    
+    if (data.result) {
+      return JSON.parse(data.result);
+    }
+    
+    // No data in Redis, save default and return
+    const defaultList = getDefaultWatchlist();
+    await saveWatchlist(userId, defaultList);
+    return defaultList;
+  } catch (err) {
+    console.error('Redis GET error:', err);
     return getDefaultWatchlist();
   }
 }
 
 async function saveWatchlist(userId, watchlist) {
-  if (!UPSTASH_REDIS_URL) return;
+  if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) {
+    console.log('Redis not configured, cannot save');
+    return false;
+  }
 
   try {
-    await fetch(`${UPSTASH_REDIS_URL}/set/watchlist:${userId}`, {
+    const response = await fetch(`${UPSTASH_REDIS_URL}/set/watchlist:${userId}`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(watchlist)
+      body: JSON.stringify(JSON.stringify(watchlist))
     });
+    
+    if (!response.ok) {
+      console.error('Redis SET failed:', response.status, await response.text());
+      return false;
+    }
+    
+    const result = await response.json();
+    console.log('Redis SET result:', result);
+    return result.result === 'OK';
   } catch (err) {
-    console.error('Save watchlist error:', err);
+    console.error('Redis SET error:', err);
+    return false;
   }
 }
 
 async function saveInitialFollowing(fid) {
-  if (!UPSTASH_REDIS_URL) return;
+  if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) return;
 
   try {
-    // Get current following
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=150`,
       {
@@ -181,14 +219,13 @@ async function saveInitialFollowing(fid) {
       avatar: u.pfp_url
     }));
 
-    // Save to Redis
     await fetch(`${UPSTASH_REDIS_URL}/set/following:${fid}?ex=86400`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(following)
+      body: JSON.stringify(JSON.stringify(following))
     });
   } catch (err) {
     console.error('Save initial following error:', err);
