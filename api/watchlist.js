@@ -1,4 +1,4 @@
-// Watchlist API with Redis persistence
+// Watchlist API with Redis
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
 const UPSTASH_REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
@@ -43,12 +43,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Already in watchlist' });
       }
 
-      // Fetch user from Neynar
+      // Fetch user from Neynar (v2 API)
       let userData = { username: cleanUsername, platform };
       
       try {
-        const neynarRes = await fetch(
-          `https://api.neynar.com/v1/farcaster/user-by-username?username=${cleanUsername}`,
+        // Search for user
+        const searchRes = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/search?q=${cleanUsername}&limit=1`,
           {
             headers: {
               'accept': 'application/json',
@@ -57,22 +58,22 @@ export default async function handler(req, res) {
           }
         );
         
-        if (neynarRes.ok) {
-          const data = await neynarRes.json();
-          const user = data.result?.user;
+        if (searchRes.ok) {
+          const data = await searchRes.json();
+          const user = data.result?.users?.[0];
           if (user) {
             userData = {
               fid: user.fid,
               username: user.username,
-              displayName: user.displayName,
-              avatar: user.pfp?.url,
-              followers: formatCount(user.followerCount),
+              displayName: user.display_name,
+              avatar: user.pfp_url,
+              followers: formatCount(user.follower_count),
               platform: 'farcaster'
             };
           }
         }
       } catch (err) {
-        console.error('Neynar fetch error:', err.message);
+        console.error('Neynar search error:', err.message);
       }
 
       const newItem = {
@@ -85,7 +86,7 @@ export default async function handler(req, res) {
       watchlist.push(newItem);
       await saveWatchlist(userId, watchlist);
 
-      // Save initial following snapshot
+      // Save initial following
       if (userData.fid) {
         saveInitialFollowing(userData.fid);
       }
@@ -122,7 +123,6 @@ export default async function handler(req, res) {
   }
 }
 
-// Redis GET
 async function getWatchlist(userId) {
   if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) {
     return getDefaultWatchlist();
@@ -133,24 +133,16 @@ async function getWatchlist(userId) {
       headers: { 'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}` }
     });
     
-    if (!response.ok) {
-      return getDefaultWatchlist();
-    }
+    if (!response.ok) return getDefaultWatchlist();
     
     const data = await response.json();
     
     if (data.result) {
-      // Handle both string and already parsed data
       let parsed = data.result;
-      if (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed);
+      while (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch { break; }
       }
-      if (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed);
-      }
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+      if (Array.isArray(parsed)) return parsed;
     }
     
     return getDefaultWatchlist();
@@ -160,14 +152,11 @@ async function getWatchlist(userId) {
   }
 }
 
-// Redis SET
 async function saveWatchlist(userId, watchlist) {
-  if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) {
-    return false;
-  }
+  if (!UPSTASH_REDIS_URL || !UPSTASH_REDIS_TOKEN) return false;
 
   try {
-    const response = await fetch(`${UPSTASH_REDIS_URL}/set/watchlist:${userId}`, {
+    await fetch(`${UPSTASH_REDIS_URL}/set/watchlist:${userId}`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${UPSTASH_REDIS_TOKEN}`,
@@ -175,8 +164,7 @@ async function saveWatchlist(userId, watchlist) {
       },
       body: JSON.stringify(watchlist)
     });
-    
-    return response.ok;
+    return true;
   } catch (err) {
     console.error('Redis SET error:', err);
     return false;
@@ -202,9 +190,7 @@ async function saveInitialFollowing(fid) {
     const data = await response.json();
     const following = (data.users || []).map(u => ({
       fid: u.fid,
-      username: u.username,
-      displayName: u.display_name,
-      avatar: u.pfp_url
+      username: u.username
     }));
 
     await fetch(`${UPSTASH_REDIS_URL}/set/following:${fid}?ex=86400`, {
@@ -222,30 +208,14 @@ async function saveInitialFollowing(fid) {
 
 function getDefaultWatchlist() {
   return [
-    {
-      id: 'default-1',
-      fid: 3,
-      username: 'dwr.eth',
-      displayName: 'Dan Romero',
-      platform: 'farcaster',
-      followers: '245K',
-      lastActive: '2 min ago'
-    },
-    {
-      id: 'default-2',
-      fid: 5650,
-      username: 'vitalik.eth',
-      displayName: 'Vitalik Buterin',
-      platform: 'farcaster',
-      followers: '892K',
-      lastActive: '15 min ago'
-    }
+    { id: 'default-1', fid: 3, username: 'dwr', displayName: 'Dan Romero', platform: 'farcaster', followers: '612K', lastActive: '2 min ago' },
+    { id: 'default-2', fid: 5650, username: 'vitalik.eth', displayName: 'Vitalik Buterin', platform: 'farcaster', followers: '420K', lastActive: '15 min ago' }
   ];
 }
 
 function formatCount(num) {
   if (!num) return '0';
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  if (num >= 1000) return Math.floor(num / 1000) + 'K';
   return num.toString();
 }

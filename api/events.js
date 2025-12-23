@@ -3,7 +3,6 @@
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,8 +16,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Popular Farcaster FIDs to track
-    const popularFids = [3, 2, 5650]; // dwr.eth, v, vitalik.eth
+    // Popular Farcaster FIDs
+    const popularFids = [3, 2, 5650, 3621, 12142]; // dwr, v, vitalik, ccarella, jessepollak
     const events = [];
 
     for (const fid of popularFids) {
@@ -34,7 +33,11 @@ export default async function handler(req, res) {
           }
         );
 
-        if (!userRes.ok) continue;
+        if (!userRes.ok) {
+          console.log(`User fetch failed for fid ${fid}:`, userRes.status);
+          continue;
+        }
+
         const userData = await userRes.json();
         const user = userData.users?.[0];
         if (!user) continue;
@@ -50,7 +53,11 @@ export default async function handler(req, res) {
           }
         );
 
-        if (!followingRes.ok) continue;
+        if (!followingRes.ok) {
+          console.log(`Following fetch failed for fid ${fid}:`, followingRes.status);
+          continue;
+        }
+
         const followingData = await followingRes.json();
         const following = followingData.users || [];
 
@@ -80,15 +87,21 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ events });
+    // Shuffle events for variety
+    events.sort(() => Math.random() - 0.5);
+
+    return res.status(200).json({ 
+      events: events.slice(0, 15),
+      total: events.length
+    });
 
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ error: 'Failed to fetch events', events: [] });
+    console.error('Events API Error:', error);
+    return res.status(500).json({ error: 'Failed to fetch', details: error.message, events: [] });
   }
 }
 
 function getTimeAgo(index) {
-  const times = ['2 min ago', '5 min ago', '15 min ago', '32 min ago', '1 hour ago'];
+  const times = ['2 min ago', '5 min ago', '12 min ago', '28 min ago', '45 min ago', '1 hour ago', '2 hours ago'];
   return times[index % times.length];
 }
