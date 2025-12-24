@@ -1,4 +1,4 @@
-// Farcaster Events API - Debug version
+// Farcaster Events API - Using free user/bulk endpoint
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,66 +10,75 @@ export default async function handler(req, res) {
   }
 
   const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-  const events = [];
-  const debug = { apiKey: NEYNAR_API_KEY ? 'set' : 'missing' };
-
+  
   if (!NEYNAR_API_KEY) {
-    return res.status(200).json({ events: [], debug, error: 'API key missing' });
+    return res.status(200).json({ events: [], error: 'API key missing' });
   }
 
+  // Popular Farcaster user FIDs (free endpoint: user/bulk)
+  const popularFids = [3, 2, 5650, 194, 239, 576, 1317, 3621, 4167, 6596, 7143, 12142, 16405, 20910];
+  
   try {
-    // Try power users endpoint
-    const powerUrl = 'https://api.neynar.com/v2/farcaster/user/power?limit=10';
-    debug.powerUrl = powerUrl;
+    // Fetch users in bulk (this endpoint is free)
+    const bulkUrl = `https://api.neynar.com/v2/farcaster/user/bulk?fids=${popularFids.join(',')}`;
     
-    const powerRes = await fetch(powerUrl, {
+    const response = await fetch(bulkUrl, {
       headers: {
         'accept': 'application/json',
         'api_key': NEYNAR_API_KEY
       }
     });
 
-    debug.powerStatus = powerRes.status;
-
-    if (!powerRes.ok) {
-      const errorText = await powerRes.text();
-      debug.powerError = errorText.substring(0, 200);
-      return res.status(200).json({ events: [], debug });
+    if (!response.ok) {
+      return res.status(200).json({ events: [], error: `API error: ${response.status}` });
     }
 
-    const powerData = await powerRes.json();
-    const users = powerData.users || [];
-    debug.usersCount = users.length;
+    const data = await response.json();
+    const users = data.users || [];
 
-    // Create events from power users
-    for (let i = 0; i < users.length - 1; i += 2) {
-      const actor = users[i];
-      const target = users[i + 1];
+    if (users.length < 2) {
+      return res.status(200).json({ events: [], error: 'Not enough users' });
+    }
+
+    // Create simulated follow events between these users
+    const events = [];
+    const times = ['Just now', '2 min ago', '5 min ago', '12 min ago', '28 min ago', '45 min ago', '1 hour ago', '2 hours ago'];
+    
+    // Shuffle users for variety
+    const shuffled = [...users].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < shuffled.length - 1 && events.length < 10; i++) {
+      const actor = shuffled[i];
+      const target = shuffled[i + 1];
       
       events.push({
         id: `${actor.fid}-${target.fid}-${Date.now()}-${i}`,
-        type: 'follow',
+        type: i % 5 === 0 ? 'unfollow' : 'follow',
         actor: {
           fid: actor.fid,
           username: actor.username,
           displayName: actor.display_name,
-          avatar: actor.pfp_url
+          avatar: actor.pfp_url,
+          platform: 'farcaster'
         },
         target: {
           fid: target.fid,
           username: target.username,
           displayName: target.display_name,
           avatar: target.pfp_url,
-          bio: target.profile?.bio?.text || ''
+          bio: target.profile?.bio?.text?.substring(0, 100) || '',
+          platform: 'farcaster'
         },
-        timeAgo: ['2 min ago', '8 min ago', '22 min ago', '45 min ago', '1 hour ago'][i % 5]
+        timeAgo: times[i % times.length]
       });
     }
 
-    return res.status(200).json({ events, total: events.length, debug });
+    return res.status(200).json({ 
+      events, 
+      total: events.length 
+    });
 
   } catch (error) {
-    debug.exception = error.message;
-    return res.status(200).json({ events: [], debug });
+    return res.status(200).json({ events: [], error: error.message });
   }
 }
