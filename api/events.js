@@ -1,6 +1,4 @@
-// Farcaster Follow Events API
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
+// Farcaster Follow Events API - Simplified
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,97 +9,90 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || 'NEYNAR_API_DOCS';
+  const events = [];
+  const errors = [];
+
+  // Test with single FID first
+  const testFid = 3;
 
   try {
-    // Popular Farcaster FIDs
-    const popularFids = [3, 2, 5650, 3621, 12142]; // dwr, v, vitalik, ccarella, jessepollak
-    const events = [];
-
-    for (const fid of popularFids) {
-      try {
-        // Get user info
-        const userRes = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-          {
-            headers: {
-              'accept': 'application/json',
-              'api_key': NEYNAR_API_KEY
-            }
-          }
-        );
-
-        if (!userRes.ok) {
-          console.log(`User fetch failed for fid ${fid}:`, userRes.status);
-          continue;
-        }
-
-        const userData = await userRes.json();
-        const user = userData.users?.[0];
-        if (!user) continue;
-
-        // Get following
-        const followingRes = await fetch(
-          `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=5`,
-          {
-            headers: {
-              'accept': 'application/json',
-              'api_key': NEYNAR_API_KEY
-            }
-          }
-        );
-
-        if (!followingRes.ok) {
-          console.log(`Following fetch failed for fid ${fid}:`, followingRes.status);
-          continue;
-        }
-
-        const followingData = await followingRes.json();
-        const following = followingData.users || [];
-
-        following.forEach((followed, index) => {
-          events.push({
-            id: `${fid}-${followed.fid}-${Date.now()}-${index}`,
-            type: 'follow',
-            actor: {
-              fid: user.fid,
-              username: user.username,
-              displayName: user.display_name,
-              avatar: user.pfp_url,
-              platform: 'farcaster'
-            },
-            target: {
-              fid: followed.fid,
-              username: followed.username,
-              displayName: followed.display_name,
-              avatar: followed.pfp_url,
-              bio: followed.profile?.bio?.text || ''
-            },
-            timeAgo: getTimeAgo(index)
-          });
-        });
-      } catch (err) {
-        console.error(`Error for fid ${fid}:`, err.message);
+    // Step 1: Get user
+    const userUrl = `https://api.neynar.com/v2/farcaster/user/bulk?fids=${testFid}`;
+    const userRes = await fetch(userUrl, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': NEYNAR_API_KEY
       }
+    });
+
+    if (!userRes.ok) {
+      errors.push({ step: 'user', status: userRes.status, url: userUrl });
+      return res.status(200).json({ events, errors, debug: 'user fetch failed' });
     }
 
-    // Shuffle events for variety
-    events.sort(() => Math.random() - 0.5);
+    const userData = await userRes.json();
+    const user = userData.users?.[0];
+
+    if (!user) {
+      errors.push({ step: 'user', error: 'no user in response', data: userData });
+      return res.status(200).json({ events, errors, debug: 'no user' });
+    }
+
+    // Step 2: Get following
+    const followUrl = `https://api.neynar.com/v2/farcaster/following?fid=${testFid}&limit=10`;
+    const followRes = await fetch(followUrl, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': NEYNAR_API_KEY
+      }
+    });
+
+    if (!followRes.ok) {
+      errors.push({ step: 'following', status: followRes.status });
+      return res.status(200).json({ events, errors, debug: 'following fetch failed', user: user.username });
+    }
+
+    const followData = await followRes.json();
+    const following = followData.users || [];
+
+    // Build events
+    for (let i = 0; i < following.length; i++) {
+      const f = following[i];
+      // Handle nested user object
+      const target = f.user || f;
+      
+      events.push({
+        id: `${testFid}-${target.fid || i}-${Date.now()}`,
+        type: 'follow',
+        actor: {
+          fid: user.fid,
+          username: user.username,
+          displayName: user.display_name,
+          avatar: user.pfp_url
+        },
+        target: {
+          fid: target.fid,
+          username: target.username,
+          displayName: target.display_name,
+          avatar: target.pfp_url,
+          bio: target.profile?.bio?.text || ''
+        },
+        timeAgo: ['2 min ago', '5 min ago', '12 min ago', '25 min ago', '1 hour ago'][i % 5]
+      });
+    }
 
     return res.status(200).json({ 
-      events: events.slice(0, 15),
-      total: events.length
+      events,
+      total: events.length,
+      debug: { user: user.username, followingCount: following.length }
     });
 
   } catch (error) {
-    console.error('Events API Error:', error);
-    return res.status(500).json({ error: 'Failed to fetch', details: error.message, events: [] });
+    return res.status(200).json({ 
+      events, 
+      errors: [{ message: error.message, stack: error.stack }],
+      debug: 'exception'
+    });
   }
-}
-
-function getTimeAgo(index) {
-  const times = ['2 min ago', '5 min ago', '12 min ago', '28 min ago', '45 min ago', '1 hour ago', '2 hours ago'];
-  return times[index % times.length];
 }
